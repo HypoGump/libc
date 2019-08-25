@@ -11,6 +11,11 @@ struct list_node {
   struct list_node *prev;
 };
 
+struct list_head {
+  struct list_node node;
+  size_t size;
+};
+
 #define LIST_HEAD(name) \
         struct list_node name = { &(name), &(name) }
 
@@ -24,7 +29,7 @@ static inline int list_empty(struct list_node *head)
   return head->next == head;
 }
 
-static inline void list_insert_back(struct list_node* head, struct list_node* elem)
+static inline void list_push_front(struct list_node* head, struct list_node* elem)
 {
   head->next->prev = elem;
   elem->next = head->next;
@@ -32,7 +37,7 @@ static inline void list_insert_back(struct list_node* head, struct list_node* el
   head->next = elem;
 }
 
-static inline void list_insert_front(struct list_node* elem, struct list_node* head)
+static inline void list_push_back(struct list_node* head, struct list_node* elem)
 {
   head->prev->next = elem;
   elem->prev = head->prev;
@@ -60,6 +65,15 @@ static inline void list_del_init(struct list_node* elem)
   elem->next = elem;
 }
 
+static inline void list_swap(struct list_node* new_head, struct list_node* old_head)
+{
+  new_head->next = old_head->next;
+  new_head->prev = old_head->prev;
+  old_head->next->prev = new_head;
+  old_head->prev->next = new_head;
+  list_init(old_head);
+}
+
 #define list_entry(ptr, type, member) \
     ((type *) ((char *) (ptr) - offsetof(type, member)))
     
@@ -73,5 +87,10 @@ static inline void list_del_init(struct list_node* elem)
 
 #define list_for_each_continue(pos, head) \
     for (; pos != (head); pos = pos->next)
+
+#define list_for_each_safe(p, q, head) \
+    for (p = (head)->next, q = p->next; \
+          p != (head); \
+          p = q, q = q->next)
 
 #endif

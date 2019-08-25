@@ -10,9 +10,6 @@
 #define LIBC_LOG_ENABLE
 #define LIBC_LOG_BUF_SIZE 512
 
-// TODO:
-//   1. async logging
-//   2. rolling file auto matically
 
 enum { LOG_LEVEL_TRACE, 
        LOG_LEVEL_DEBUG, 
@@ -21,8 +18,6 @@ enum { LOG_LEVEL_TRACE,
        LOG_LEVEL_ERROR, 
        LOG_LEVEL_FATAL, 
        LOG_LEVEL_NUMS, };
-
-
 
 #ifndef LIBC_LOG_ENABLE
   #define LOG_TRACE(fmt, ...)
@@ -48,11 +43,33 @@ enum { LOG_LEVEL_TRACE,
 #endif // LIBC_LOG_ENABLE
 
 
-int log_init();
+typedef void (*OutputFunc)(const char*, size_t);
+typedef void (*FlushFunc)();
+
+/* log settings */
+void set_log_output_func(OutputFunc out);
+void set_log_flush_func(FlushFunc flush);
+void set_log_level(int level);
+// if you want to use async log, call this before your app
+void set_log_async_enabled();
+void set_log_file_basename(const char* name);
+void set_log_file_roll_size(size_t roll_size);
+
+/* log.c */
+void log_init();
 void log_log(int level, const char* srcfile, const char* func, 
               int line, const char* fmt, ...);
 
 /* log_async.c */
-void log_async_output(const char* msg, size_t len);
+void log_async_init();
+void log_async_get_log(const char* msg, size_t len);
+
+/* log_file.c */
+void log_file_init(const char* basename, size_t roll_size, time_t flush_interval);
+void log_file_append(const char* msg, size_t len);
+void log_file_flush();
+void log_file_close();
+void log_file_roll();
+
 
 #endif

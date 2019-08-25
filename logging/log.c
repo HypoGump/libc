@@ -17,13 +17,12 @@ typedef struct {
   void (*output)(const char*, size_t);
   void (*flush)();
   
-  bool aysnc_enabled;
+  bool async_enabled;
 } Logger;
 
-static Logger logger;
 // FIXME: Do we need use __thread to make sure it thread safe?
-static char log_buf[LIBC_LOG_BUF_SIZE] = {0};
-//__thread char log_buf[LIBC_LOG_BUF_SIZE] = {0};
+//static char log_buf[LIBC_LOG_BUF_SIZE] = {0};
+__thread char log_buf[LIBC_LOG_BUF_SIZE] = {0};
 
 static const char *level_names[LOG_LEVEL_NUMS] = {
   "TRACE ", 
@@ -34,23 +33,68 @@ static const char *level_names[LOG_LEVEL_NUMS] = {
   "FATAL "
 };
 
-static void default_output(const char* msg, size_t len)
+
+/*
+ * set output and flush func
+ */
+
+void default_output(const char* msg, size_t len)
 {
   fwrite(msg, 1, len, stdout);
 }
 
-static void default_flush()
+void default_flush()
 {
   fflush(stdout);
 }
 
-int log_init()
+/*
+ * default settings, print log on stdout
+ */
+static Logger logger = {
+      .level = 0,
+      .output = &default_output,
+      .flush = &default_flush
+};
+
+/*
+ * setting interfaces
+ */
+void set_log_output_func(OutputFunc out)
 {
-  logger.output = &default_output;
-  logger.flush = &default_flush;
-  return 0;
+  logger.output = out;
 }
 
+void set_log_flush_func(FlushFunc flush)
+{
+  logger.flush = flush;
+}
+
+void set_log_level(int level)
+{
+  logger.level = level;
+}
+
+void set_log_async_enabled()
+{
+  logger.async_enabled = true;
+}
+
+
+/*
+ * call this func before app, if you want to config log settings
+ */
+void log_init()
+{
+  if (logger.async_enabled) {
+    set_log_output_func(log_async_get_log);
+  }
+  log_async_init();
+}
+
+/*
+ *  get thread id
+ */
 static pid_t gettid()
 {
   if (t_cachetid == 0) {
@@ -59,6 +103,9 @@ static pid_t gettid()
   return t_cachetid;
 }
 
+/*
+ *  generate formated log datetime
+ */
 static void record_log_time()
 {
   struct timeval tv;
@@ -89,6 +136,10 @@ static void record_log_time()
 void log_log(int level, const char* srcfile, const char* func, 
               int line, const char* fmt, ...)
 {
+  if (level < logger.level) {
+    return;
+  }
+  
   size_t log_len = 0;
   /* 1. date and time*/
   record_log_time();
@@ -114,9 +165,10 @@ void log_log(int level, const char* srcfile, const char* func,
   }
   if (log_len < LIBC_LOG_BUF_SIZE) {
     *(log_buf+log_len) = '\0';
-    ++log_len;
   }
   
+  /* 6. record errno */
+  // TODO
   
   logger.output(log_buf, log_len);
   if (level == LOG_LEVEL_FATAL) {
