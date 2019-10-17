@@ -12,8 +12,7 @@
 __thread char t_time[32];
 __thread time_t t_seconds;
 __thread pid_t t_cachetid = 0;
-__thread t_errnobuf[512];
-__thread int t_saved_errno = 0;
+__thread char t_errnobuf[512];
 
 typedef struct {
   uint8_t level;
@@ -143,10 +142,6 @@ void log_log(int level, const char* srcfile, const char* func,
     return;
   }
   
-  if (level >= LOG_LEVEL_ERROR) {
-    t_saved_errno = errno;
-  }
-  
   size_t log_len = 0;
   /* 1. date and time*/
   record_log_time();
@@ -166,10 +161,12 @@ void log_log(int level, const char* srcfile, const char* func,
   log_len += vsnprintf(log_buf + log_len, LIBC_LOG_BUF_SIZE - log_len, fmt, args);
   
   /* 5. record errno */
-  if (t_saved_errno != 0) {
-    strerror_r(savedErrno, t_errnobuf, sizeof(t_errnobuf));
-    log_len += snprintf(log_buf + log_len, LIBC_LOG_BUF_SIZE - log_len, 
-                        "(errno=%d) %s", t_saved_errno, t_errnobuf);
+  if (level >= LOG_LEVEL_ERROR) {
+    if (errno != 0) {
+      strerror_r(errno, t_errnobuf, sizeof(t_errnobuf));
+      log_len += snprintf(log_buf + log_len, LIBC_LOG_BUF_SIZE - log_len, 
+                          "(errno=%d) %s", errno, t_errnobuf);
+    }
   }
   
   /* 6. add '\n' and '\0' */
