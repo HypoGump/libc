@@ -13,6 +13,7 @@ __thread char t_time[32];
 __thread time_t t_seconds;
 __thread pid_t t_cachetid = 0;
 __thread char t_errnobuf[512];
+__thread int t_savedErrno = 0;
 
 typedef struct {
   uint8_t level;
@@ -136,10 +137,14 @@ static void record_log_time()
  *      date time tid loglevel sourcefile:line - message
  */
 void log_log(int level, const char* srcfile, const char* func, 
-              int line, const char* fmt, ...)
+              int line, int sysflag, const char* fmt, ...)
 {
   if (level < logger.level) {
     return;
+  }
+  
+  if (sysflag && level >= LOG_LEVEL_ERROR) {
+    t_savedErrno = errno;
   }
   
   size_t log_len = 0;
@@ -161,12 +166,10 @@ void log_log(int level, const char* srcfile, const char* func,
   log_len += vsnprintf(log_buf + log_len, LIBC_LOG_BUF_SIZE - log_len, fmt, args);
   
   /* 5. record errno */
-  if (level >= LOG_LEVEL_ERROR) {
-    if (errno != 0) {
-      strerror_r(errno, t_errnobuf, sizeof(t_errnobuf));
-      log_len += snprintf(log_buf + log_len, LIBC_LOG_BUF_SIZE - log_len, 
-                          "(errno=%d) %s", errno, t_errnobuf);
-    }
+  if (sysflag && level >= LOG_LEVEL_ERROR && t_savedErrno != 0) {
+    strerror_r(t_savedErrno, t_errnobuf, sizeof(t_errnobuf));
+    log_len += snprintf(log_buf + log_len, LIBC_LOG_BUF_SIZE - log_len, 
+                        "(errno=%d) %s", t_savedErrno, t_errnobuf);
   }
   
   /* 6. add '\n' and '\0' */

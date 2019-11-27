@@ -107,12 +107,12 @@ static void *log_async_output()
   if (count == 0) pthread_cond_broadcast(&backend_running_cond);
   pthread_mutex_unlock(&backend_running_mutex);
   
-  // TODO: open a file 
   log_file_roll();
   Buffer* newBuffer1 = buf_alloc();
   Buffer* newBuffer2 = buf_alloc();
   
   LIST_HEAD(buffersToWrite);
+  // FIXME: when 'main' thread exit, how to exit this loop
   while (1) {
     pthread_mutex_lock(&log_buf_mutex);
     if (buffers_len == 0) {
@@ -149,6 +149,10 @@ static void *log_async_output()
     log_file_flush();
   }
   
+  // FIXME: they won't excute when main thread exit?
+  // Stackoverflow: https://stackoverflow.com/questions/24565191/file-pointer-in-c-dynamically-allocated
+  // Note: when program exit, all open files are closed automatically (and all out streams are flushed),
+  //       but it a good practice to explicitly call fclose(). Is there any better method?
   log_file_flush();
   log_file_close();
 }

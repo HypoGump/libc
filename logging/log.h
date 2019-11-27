@@ -26,20 +26,26 @@ enum { LOG_LEVEL_TRACE,
   #define LOG_WARN(fmt, ...)
   #define LOG_ERROR(fmt, ...)
   #define LOG_FATAL(fmt, ...)
+  #define LOG_SYSERR(fmt, ...)
+  #define LOG_SYSFATAL(fmt, ...)
 #else
   // Note: ##__VA_ARGS__ mean omit ',' when '...' is none
   #define LOG_TRACE(fmt, ...) \
-          log_log(LOG_LEVEL_TRACE, __FILE__, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
+          log_log(LOG_LEVEL_TRACE, __FILE__, __FUNCTION__, __LINE__, 0, fmt, ##__VA_ARGS__)
   #define LOG_DEBUG(fmt, ...) \
-          log_log(LOG_LEVEL_DEBUG, __FILE__, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
+          log_log(LOG_LEVEL_DEBUG, __FILE__, __FUNCTION__, __LINE__, 0, fmt, ##__VA_ARGS__)
   #define LOG_INFO(fmt, ...) \
-          log_log(LOG_LEVEL_INFO, __FILE__, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
+          log_log(LOG_LEVEL_INFO, __FILE__, __FUNCTION__, __LINE__, 0, fmt, ##__VA_ARGS__)
   #define LOG_WARN(fmt, ...) \
-          log_log(LOG_LEVEL_WARN, __FILE__, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
+          log_log(LOG_LEVEL_WARN, __FILE__, __FUNCTION__, __LINE__, 0, fmt, ##__VA_ARGS__)
   #define LOG_ERROR(fmt, ...) \
-          log_log(LOG_LEVEL_ERROR, __FILE__, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
+          log_log(LOG_LEVEL_ERROR, __FILE__, __FUNCTION__, __LINE__, 0, fmt, ##__VA_ARGS__)
   #define LOG_FATAL(fmt, ...) \
-          log_log(LOG_LEVEL_FATAL, __FILE__, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
+          log_log(LOG_LEVEL_FATAL, __FILE__, __FUNCTION__, __LINE__, 0, fmt, ##__VA_ARGS__)
+  #define LOG_SYSERR(fmt, ...) \
+          log_log(LOG_LEVEL_ERROR, __FILE__, __FUNCTION__, __LINE__, 1, fmt, ##__VA_ARGS__)
+  #define LOG_SYSFATAL(fmt, ...) \
+          log_log(LOG_LEVEL_FATAL, __FILE__, __FUNCTION__, __LINE__, 1, fmt, ##__VA_ARGS__)
 #endif // LIBC_LOG_ENABLE
 
 
@@ -58,7 +64,7 @@ void set_log_file_roll_size(size_t roll_size);
 /* log.c */
 void log_init();
 void log_log(int level, const char* srcfile, const char* func, 
-              int line, const char* fmt, ...);
+              int line, int sysflag, const char* fmt, ...);
 
 /* log_async.c */
 void log_async_init();
