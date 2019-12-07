@@ -3,6 +3,8 @@
 
 #include <pthread.h>
 #include <string.h>
+#include <stdio.h>
+#include <signal.h>
 
 #define AYSNC_BUF_SIZE 4000*1000  // 4MB
 #define LOG_ASYNC_OUTPUT_PTHREAD_PRIORITY  (sched_get_priority_max(SCHED_RR) - 1)
@@ -16,6 +18,8 @@ static pthread_cond_t backend_running_cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t backend_running_mutex = PTHREAD_MUTEX_INITIALIZER;
 static int count = 1;
 
+static volatile sig_atomic_t log_async_running = 1;
+
 typedef struct {
   struct list_node node;
   char buf[AYSNC_BUF_SIZE];
@@ -23,8 +27,8 @@ typedef struct {
   size_t len;
 } Buffer;
 
-static Buffer* currentBuffer;
-static Buffer* nextBuffer;
+static Buffer* currentBuffer = NULL;
+static Buffer* nextBuffer = NULL;
 LIST_HEAD(buffers);  // buffer list
 static size_t buffers_len = 0;
 
@@ -75,15 +79,15 @@ static void append(Buffer* buffer, const char* msg, size_t len)
 void log_async_get_log(const char* msg, size_t len)
 {
   pthread_mutex_lock(&log_buf_mutex);
-  
+
   if (currentBuffer->avail > len) {
     append(currentBuffer, msg, len);
   }
   else {
     list_push_back(&buffers, &currentBuffer->node);
     ++buffers_len;
-    
-    if (nextBuffer) {
+
+    if (nextBuffer == NULL) {
       currentBuffer = ptr_move(nextBuffer);
     }
     else {
@@ -92,7 +96,7 @@ void log_async_get_log(const char* msg, size_t len)
     append(currentBuffer, msg, len);
     pthread_cond_signal(&log_async_cond);
   }
-  
+
   pthread_mutex_unlock(&log_buf_mutex);
 }
 
@@ -100,20 +104,21 @@ void log_async_get_log(const char* msg, size_t len)
 /*
  * output backend (log thread func)
  */
-static void *log_async_output()
+static void log_async_output()
 {
   pthread_mutex_lock(&backend_running_mutex);
   --count;
   if (count == 0) pthread_cond_broadcast(&backend_running_cond);
   pthread_mutex_unlock(&backend_running_mutex);
-  
+
+  printf("[log_async.c] Async logging backend thread start...\n");
   log_file_roll();
   Buffer* newBuffer1 = buf_alloc();
   Buffer* newBuffer2 = buf_alloc();
-  
+
   LIST_HEAD(buffersToWrite);
   // FIXME: when 'main' thread exit, how to exit this loop
-  while (1) {
+  while (log_async_running) {
     pthread_mutex_lock(&log_buf_mutex);
     if (buffers_len == 0) {
       struct timespec abstime;
@@ -124,58 +129,58 @@ static void *log_async_output()
     }
     list_push_back(&buffers, &currentBuffer->node);
     currentBuffer = ptr_move(newBuffer1);
-    
+
     list_swap(&buffersToWrite, &buffers);
     buffers_len = 0;
-    
+
     if (!nextBuffer) nextBuffer = ptr_move(newBuffer2);
     pthread_mutex_unlock(&log_buf_mutex);
-    
+
     struct list_node *p;
     list_for_each(p, &buffersToWrite) {
       Buffer* bufptr = list_entry(p, Buffer, node);
       log_file_append(bufptr->buf, bufptr->len);
     }
-    
+
     struct list_node *q;
     list_for_each_safe(p, q, &buffersToWrite) {
       Buffer* bufptr = list_entry(p, Buffer, node);
       free(bufptr);
     }
-    
+
     newBuffer1 = buf_alloc();
     newBuffer2 = buf_alloc();
-    
+
     log_file_flush();
   }
-  
-  // FIXME: they won't excute when main thread exit?
+
   // Stackoverflow: https://stackoverflow.com/questions/24565191/file-pointer-in-c-dynamically-allocated
   // Note: when program exit, all open files are closed automatically (and all out streams are flushed),
-  //       but it a good practice to explicitly call fclose(). Is there any better method?
+  //       but it a good practice to explicitly call fclose().
   log_file_flush();
   log_file_close();
+  printf("[log_async.c] Async logging thread exit!\n");
 }
 
 void log_async_init()
 {
   currentBuffer = buf_alloc();
   nextBuffer = buf_alloc();
-  
+
   pthread_attr_t thread_attr;
   struct sched_param thread_sched_param;
-  
+
   pthread_attr_init(&thread_attr);
-  pthread_attr_setdetachstate(&thread_attr, PTHREAD_CREATE_DETACHED);
-  
+  pthread_attr_setdetachstate(&thread_attr, PTHREAD_CREATE_JOINABLE);
+
   pthread_attr_setschedpolicy(&thread_attr, SCHED_RR);
   thread_sched_param.sched_priority = LOG_ASYNC_OUTPUT_PTHREAD_PRIORITY;
   pthread_attr_setschedparam(&thread_attr, &thread_sched_param);
-  
-  pthread_create(&log_async_thread, &thread_attr, log_async_output, NULL);
-  
+
+  pthread_create(&log_async_thread, &thread_attr, (void*)log_async_output, NULL);
+
   pthread_attr_destroy(&thread_attr);
-  
+
   // Note: make sure backend start before app
   pthread_mutex_lock(&backend_running_mutex);
   while (count > 0) {
@@ -184,3 +189,9 @@ void log_async_init()
   pthread_mutex_unlock(&backend_running_mutex);
 }
 
+void log_async_exit()
+{
+  log_async_running = 0;
+  pthread_cond_signal(&log_async_cond);
+  pthread_join(log_async_thread, NULL);
+}

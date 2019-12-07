@@ -1,10 +1,20 @@
-SRC := $(wildcard *.c)
+SRC := $(wildcard log*.c)
 HEADERS := $(wildcard *.h)
+FALGS := -Wall -pthread -I .. -g -rdynamic -O0
+OBJS := test test_backtrace test_async
+
+all: $(OBJS)
 
 
-test: $(SRC) $(HEADERS)
-	gcc -g -o test $(SRC) -Wall -pthread -I ..
-	
+test: test.c $(SRC) $(HEADERS)
+	gcc -o $@ $^ $(FALGS)
+
+test_backtrace: test_backtrace.c $(SRC) $(HEADERS)
+	gcc -o $@ $^ $(FALGS)
+
+test_async: test_async.c $(SRC) $(HEADERS)
+	gcc -o $@ $^ $(FALGS)
+
 clean:
-	rm *.log
-	rm test
+	rm -rf *.log
+	rm -rf $(OBJS)

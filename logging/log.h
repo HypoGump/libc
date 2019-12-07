@@ -6,17 +6,18 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <time.h>
 
 #define LIBC_LOG_ENABLE
 #define LIBC_LOG_BUF_SIZE 512
 
 
-enum { LOG_LEVEL_TRACE, 
-       LOG_LEVEL_DEBUG, 
-       LOG_LEVEL_INFO, 
-       LOG_LEVEL_WARN, 
-       LOG_LEVEL_ERROR, 
-       LOG_LEVEL_FATAL, 
+enum { LOG_LEVEL_TRACE,
+       LOG_LEVEL_DEBUG,
+       LOG_LEVEL_INFO,
+       LOG_LEVEL_WARN,
+       LOG_LEVEL_ERROR,
+       LOG_LEVEL_FATAL,
        LOG_LEVEL_NUMS, };
 
 #ifndef LIBC_LOG_ENABLE
@@ -58,24 +59,34 @@ void set_log_flush_func(FlushFunc flush);
 void set_log_level(int level);
 // if you want to use async log, call this before your app
 void set_log_async_enabled();
-void set_log_file_basename(const char* name);
-void set_log_file_roll_size(size_t roll_size);
+
+typedef struct {
+  const char* basename;
+  size_t roll_size;
+  time_t flush_interval;
+} file_params_t;
+
+#define set_log_file_params(...) var_file_params((file_params_t){.basename="libc-logfile", \
+                                            .roll_size=500*1000*1000, \
+                                            .flush_interval=3, ##__VA_ARGS__})
 
 /* log.c */
-void log_init();
-void log_log(int level, const char* srcfile, const char* func, 
+void log_init(void);
+void log_log(int level, const char* srcfile, const char* func,
               int line, int sysflag, const char* fmt, ...);
+void log_exit(void);
 
 /* log_async.c */
-void log_async_init();
+void log_async_init(void);
+void log_async_exit(void);
 void log_async_get_log(const char* msg, size_t len);
 
 /* log_file.c */
-void log_file_init(const char* basename, size_t roll_size, time_t flush_interval);
+void var_file_params(file_params_t init);
 void log_file_append(const char* msg, size_t len);
-void log_file_flush();
-void log_file_close();
-void log_file_roll();
+void log_file_flush(void);
+void log_file_close(void);
+void log_file_roll(void);
 
 
 #endif

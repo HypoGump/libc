@@ -2,17 +2,43 @@
 
 ## Feature
 
-+ 支持多种级别日志
-+ 支持自定义日志输出
++ 支持7级日志，等级高亮，backtrace
++ 支持自定义日志输出函数
+
++ 带默认参数风格的日志文件参数设置
+
 + 双缓冲异步输出
 + C语言 `printf` 样式调用
 
 ## 使用
 
 1. 引入头文件 `log.h` 即可使用
-2. 开启异步日志需要先调用 `set_log_async_enabled()` ，再调用 `log_init()` 开启日志后端线程
+
+2. 标准使用流程为
+
+   ```c
+   #include "log.h"
+   
+   int main()
+   {
+       // 设置日志各项参数
+       set_XX();
+       // 初始化日志
+       log_init();
+       
+       // 功能逻辑
+       ...;
+       
+       // 关闭日志
+       log_exit();
+   }
+   ```
+
+   
 
 ## 性能测试
+
+CPU: i5-8265U  RAM: 8G  OS: WSL Ubuntu-18.04 LTS
 
 ```shell
 # /dev/null

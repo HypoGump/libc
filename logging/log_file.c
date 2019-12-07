@@ -19,25 +19,10 @@ static char basename[128] = "libc-logfile";
 static const int SECONDS_PER_DAY = 60*60*24;
 
 /*
- * set basename
- */
-void set_log_file_basename(const char* name)
-{
-  size_t n = snprintf(basename, sizeof(basename), "%s", name);
-  *(basename+n) = '\0';
-}
-
-void set_log_file_roll_size(size_t size)
-{
-  roll_size = size;
-}
-
-
-/*
  * get log file name
- * 
+ *
  * log file name format:   basename.datetime.hostname.pid.log
- * @param basename: 
+ * @param basename:
  * @param now:
  */
 static void get_log_file_name(const char* basename, time_t* now)
@@ -61,14 +46,14 @@ static void get_log_file_name(const char* basename, time_t* now)
   char pidbuf[32];
   snprintf(pidbuf, sizeof(pidbuf), ".%d", getpid());
   pos += snprintf(filename+pos, 128-pos, "%s", pidbuf);
-  
+
   snprintf(filename+pos, 128-pos, ".log");
 }
 
 /*
  * write to file without lock
  */
-static size_t write_file_unlocked(const char* msg, size_t len) 
+static size_t write_file_unlocked(const char* msg, size_t len)
 {
   return fwrite_unlocked(msg, 1, len, fp);
 }
@@ -85,7 +70,7 @@ static void file_append(const char* msg, size_t len)
 {
   size_t n = write_file_unlocked(msg, len);
   size_t remain = len - n;
-  
+
   while (remain > 0) {
     size_t x = write_file_unlocked(msg + n, len);
     if (x == 0) {
@@ -100,24 +85,24 @@ static void file_append(const char* msg, size_t len)
     n += x;
     remain -= x;
   }
-  
+
   written_bytes += len;
 }
 
 /*
- * interface to log_async_output 
+ * interface to log_async_output
  */
 void log_file_append(const char* msg, size_t len)
 {
   file_append(msg, len);
-  
+
   if (written_bytes > roll_size) {
     log_file_roll();
   }
   else {
     time_t now = time(NULL);
     time_t this_day = now / SECONDS_PER_DAY;
-    
+
     if (this_day != start_day) {
       log_file_roll();
     }
@@ -134,14 +119,14 @@ void log_file_append(const char* msg, size_t len)
 void log_file_roll()
 {
   if (fp) fclose(fp);
-  
+
   time_t now;
   get_log_file_name(basename, &now);
-  
+
   start_day = now / SECONDS_PER_DAY;
   last_flush_time = now;
   written_bytes = 0;
-  
+
   fp = fopen(filename, "ae");
   setbuffer(fp, buffer, sizeof(buffer));
 }
@@ -149,4 +134,19 @@ void log_file_roll()
 void log_file_close()
 {
   fclose(fp);
+}
+
+/*
+ * set log file infomation
+ *
+ * @param basename: your log file prefix name
+ * @param roll_size: max size of a log file (Bytes)
+ * @param flush_interval: automatically flush per 'interval' seconds
+ */
+void var_file_params(file_params_t init)
+{
+  size_t n = snprintf(basename, sizeof(basename), "%s", init.basename);
+  *(basename+n) = '\0';
+  flush_interval = init.flush_interval;
+  roll_size = init.roll_size;
 }
